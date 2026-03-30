@@ -1,12 +1,10 @@
 """
 scraper.py - Scraper de stages pour ma recherche de stage d'exécution été 2026
 Cible : stages opérateur à Paris et Strasbourg
-Sources : Welcome to the Jungle + HelloWork (ex-RegionsJob)
-
-Pourquoi pas Indeed ?
-→ Indeed change sa structure HTML très souvent et bloque les scrapers
-   agressivement. WTTJ a une API interne propre, et HelloWork a un
-   HTML stable et bien structuré.
+Sources : Welcome to the Jungle, HelloWork et éventuellement Indeed
+Pb : Indeed change sa structure HTML très souvent et bloque les scrapers
+agressivement apparemment. WTTJ a une API interne propre, et HelloWork a un
+HTML stable et bien structuré.
 
 Usage :
     python scraper.py                          # recherche par défaut
@@ -25,11 +23,9 @@ from datetime import datetime
 from pathlib import Path
 
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
+# CONFIG
 
-# Les villes où je cherche un stage, avec leurs coordonnées GPS
+# villes et coordonnées GPS
 # (utilisées par l'API WTTJ pour filtrer par zone géographique)
 VILLES = {
     "Paris": {
@@ -42,8 +38,8 @@ VILLES = {
     },
 }
 
-# Headers HTTP qui imitent un vrai navigateur Chrome
-# Sans ça, les sites détectent qu'on est un script et bloquent les requêtes
+# Headers HTTP qui imitent un vrai navigateur Chrome (cf vidéo youtube parsing)
+# sans ça, les sites détectent qu'on est un script et bloquent les requêtes
 # (ils vérifient le User-Agent pour filtrer les bots)
 HEADERS = {
     "User-Agent": (
@@ -55,23 +51,17 @@ HEADERS = {
 }
 
 
-# ============================================================
 # SCRAPER WELCOME TO THE JUNGLE
-# ============================================================
-# WTTJ est une app React → le HTML renvoyé par le serveur est quasi vide,
+# WTTJ c'est une app React donc le HTML renvoyé par le serveur est quasi vide,
 # tout le contenu est chargé dynamiquement par JavaScript.
 #
 # BeautifulSoup ne peut pas exécuter du JS, donc on aurait besoin de
-# Selenium (un navigateur automatisé) pour récupérer le contenu.
+# Selenium (à taffer) pour récupérer le contenu.
 #
 # MAIS en ouvrant les Chrome DevTools (onglet Network), on voit que
 # le JavaScript de WTTJ appelle une API REST interne pour charger
 # les offres. On peut appeler cette API directement depuis Python
-# → pas besoin de Selenium, c'est plus rapide et plus fiable.
-#
-# C'est un réflexe important en scraping : toujours vérifier s'il y a
-# une API cachée avant de sortir Selenium.
-# ============================================================
+# pas besoin de Selenium, c'est plus rapide et plus fiable (merci Tonton :) )
 
 def scrape_wttj(query, ville, nb_pages=3):
     """
@@ -87,7 +77,7 @@ def scrape_wttj(query, ville, nb_pages=3):
     """
     offres = []
 
-    # on crée une Session HTTP → ça réutilise la connexion TCP entre les requêtes
+    # on crée une Session HTTP, ça réutilise la connexion TCP entre les requêtes
     # (plus rapide que de créer une nouvelle connexion à chaque fois)
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -163,23 +153,14 @@ def scrape_wttj(query, ville, nb_pages=3):
     return offres
 
 
-# ============================================================
-# SCRAPER HELLOWORK (ex-RegionsJob)
-# ============================================================
-# HelloWork est un job board français classique.
-# Contrairement à WTTJ, le HTML est rendu côté serveur (server-side rendering)
-# → le contenu est directement dans le HTML qu'on reçoit.
-# → BeautifulSoup peut parser la page sans problème.
-#
-# Comment j'ai trouvé les bons sélecteurs CSS :
-# 1. Aller sur hellowork.com, chercher "stage opérateur Paris"
-# 2. Clic droit sur une offre → "Inspecter"
-# 3. Remonter dans l'arbre HTML pour trouver le conteneur de la carte
-# 4. Noter les classes CSS et attributs data-* utilisés
-#
-# ⚠️ Les sélecteurs CSS peuvent changer si HelloWork refait son site.
-# C'est le problème principal du scraping HTML vs API.
-# ============================================================
+# SCRAPER HELLOWORK
+
+# Contrairement à WTTJ, le HTML est rendu côté serveur, donc 
+# le contenu est directement dans le HTML qu'on reçoit, on peut
+# parser avec BeautifulSoup sans pb.
+#(galère pour trouver les bons
+# sélecteurs CSS, en plus ils peuvent changer si HelloWork refait son site)
+
 
 def scrape_hellowork(query, ville, nb_pages=3):
     """
@@ -291,9 +272,7 @@ def scrape_hellowork(query, ville, nb_pages=3):
     return offres
 
 
-# ============================================================
 # POST-TRAITEMENT
-# ============================================================
 
 def dedup(offres):
     """
@@ -349,10 +328,6 @@ def exporter_csv(offres, query):
     df.to_csv(path, index=False, encoding="utf-8-sig")
     print(f"\n{len(df)} offres exportées -> {path}")
 
-
-# ============================================================
-# POINT D'ENTRÉE
-# ============================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scraper de stages - Paris & Strasbourg")
